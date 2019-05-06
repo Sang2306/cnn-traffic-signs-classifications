@@ -1,5 +1,5 @@
-# Load pickled data
 import pickle
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -46,7 +46,7 @@ def constrast_limit(image):
 
 def laplacian_of_gaussian(image):
     """
-        Su dung bo nhieu Gaussian va Laplacian
+        Su dung bo loc nhieu Gaussian va Laplacian
     :param image:
     :return: | LoG_image |
     """
@@ -108,15 +108,15 @@ def contour_is_sign(contour, centroid, threshold):
         first_coor = element[0]
         distance = np.sqrt((first_coor[0] - centroid[0]) ** 2 + (first_coor[1] - centroid[1]) ** 2)
         distance_list.append(distance)
-    max_value = max(distance_list)
-    signature = [float(dist) / max_value for dist in distance_list]
+    max_distance = max(distance_list)
+    signature = [float(dist) / max_distance for dist in distance_list]
     # Check signature of contour.
     temp = sum((1 - s) for s in signature)
     temp = temp / len(signature)
     if temp < threshold:  # sign
-        return True, max_value + 2
+        return True, max_distance + 2
     else:  # not sign
-        return False, max_value + 2
+        return False, max_distance + 2
 
 
 def crop_sign(image, coordinate):
@@ -127,11 +127,11 @@ def crop_sign(image, coordinate):
     """
     width = image.shape[1]
     height = image.shape[0]
-    top = max([int(coordinate[0][1]), 0])
-    bottom = min([int(coordinate[1][1]), height - 1])
     left = max([int(coordinate[0][0]), 0])
+    top = max([int(coordinate[0][1]), 0])
     right = min([int(coordinate[1][0]), width - 1])
-    return image[top - 3:bottom + 3, left - 3:right + 3]
+    bottom = min([int(coordinate[1][1]), height - 1])
+    return image[top - 7:bottom + 7, left - 7:right + 7]
 
 
 def find_lagest_sign(image, contour, threshold, distance_theshold):
@@ -155,7 +155,7 @@ def find_lagest_sign(image, contour, threshold, distance_theshold):
         coordinate = np.reshape(contour, [-1, 2])
         left, top = np.amin(coordinate, axis=0)
         right, bottom = np.amax(coordinate, axis=0)
-        coordinate = [(left - 2, top - 2), (right + 3, bottom + 1)]
+        coordinate = [(left, top), (right, bottom)]
         sign = crop_sign(image, coordinate)
     return sign, coordinate
 
@@ -223,7 +223,7 @@ def main(args):
             frame_copy = frame.copy()
             # xu ly hinh anh
             binary_image = preprocess_image(frame_copy)
-            binary_image = remove_small_components(binary_image, threshold=300)
+            binary_image = remove_small_components(binary_image, threshold=350)
             # Giu lai cac mau blue, red, white, black
             blur = cv2.GaussianBlur(frame_copy, (3, 3), 0)
             # BGR to HSV
@@ -251,9 +251,9 @@ def main(args):
             cv2.imshow("BINARY_IMAGE", binary_image)
             if len(cnts) > 0:
                 for cnt in cnts:
-                    # Chi lay ROI cua bien bao co gan camera nhat de predict
+                    # Chi lay ROI cua bien bao gan camera nhat de predict
                     try:
-                        sign, coordinate = find_lagest_sign(image=frame, contour=cnt, threshold=0.65,
+                        sign, coordinate = find_lagest_sign(image=frame, contour=cnt, threshold=0.7,
                                                             distance_theshold=15)
                         if coordinate is not None:
                             cv2.rectangle(frame_copy, coordinate[0], coordinate[1], (255, 255, 255), 1)
@@ -264,8 +264,13 @@ def main(args):
                         if sign_class[0]:
                             sign_name = signs_name[sign_class[0]]
                             cv2.rectangle(frame_copy, coordinate[0], coordinate[1], (0, 255, 0), 2)
-                            cv2.putText(frame_copy, sign_name, coordinate[0], cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                        (0, 255, 0), 2)
+                            # Vi tri ve text box
+                            text_box = [(coordinate[0][0], coordinate[0][1] - 15),
+                                        (coordinate[1][0] + (len(sign_name) * 2), coordinate[0][1])]
+                            cv2.rectangle(frame_copy, text_box[0], text_box[1], (0, 255, 0), cv2.FILLED)
+                            cv2.putText(frame_copy, sign_name, (coordinate[0][0], coordinate[0][1] - 5),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.4,
+                                        (0, 0, 0), thickness=2)
                     except Exception as e:
                         pass
             cv2.imshow('VIDEO', frame_copy)
@@ -281,12 +286,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Ap dung CNN vao viec recognition bien bao duong bo"
     )
-    parser.add_argument('video', metavar='video_name', help='ten file video', default="./MVI_0000.avi")
+    parser.add_argument(
+        'video',
+        metavar='video_file_name',
+        help='ten file video - mac dinh su dung webcam',
+        default=0
+    ).required = False
+
     parser.add_argument(
         'csv',
         metavar='cvs_file_name',
         help='file csv chua ten bien bao',
         default='./signnames.csv',
     ).required = False
+
     args = parser.parse_args()
     main(args)
