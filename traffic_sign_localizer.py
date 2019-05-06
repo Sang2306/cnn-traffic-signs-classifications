@@ -1,34 +1,34 @@
+# Load pickled data
+import pickle
 import cv2
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+training_file = './traffic-signs-data/train.p'
+validation_file = './traffic-signs-data/valid.p'
+testing_file = './traffic-signs-data/test.p'
 
-# Load pickled data
-# import pickle
-#
-# training_file = './traffic-signs-data/train.p'
-# validation_file = './traffic-signs-data/valid.p'
-# testing_file = './traffic-signs-data/test.p'
-#
-# with open(training_file, mode='rb') as f:
-#     train = pickle.load(f)
-# with open(validation_file, mode='rb') as f:
-#     valid = pickle.load(f)
-# with open(testing_file, mode='rb') as f:
-#     test = pickle.load(f)
-#
-# X_train, y_train = train['features'], train['labels']
-# X_valid, y_valid = valid['features'], valid['labels']
-# X_test, y_test = test['features'], test['labels']
-# # Shuffle data
-# from sklearn.utils import shuffle
-# # Normalize the data
-# X_train = ((X_train - X_train.mean()) / X_train.std())
-# X_valid = ((X_valid - X_valid.mean()) / X_valid.std())
-# X_test = ((X_test - X_test.mean()) / X_test.std())
-# X_train, y_train = shuffle(X_train, y_train)
-# BATCH_SIZE = 200
+with open(training_file, mode='rb') as f:
+    train = pickle.load(f)
+with open(validation_file, mode='rb') as f:
+    valid = pickle.load(f)
+with open(testing_file, mode='rb') as f:
+    test = pickle.load(f)
+
+X_train, y_train = train['features'], train['labels']
+X_valid, y_valid = valid['features'], valid['labels']
+X_test, y_test = test['features'], test['labels']
+# Shuffle data
+from sklearn.utils import shuffle
+
+# Normalize the data
+X_train = ((X_train - X_train.mean()) / X_train.std())
+X_valid = ((X_valid - X_valid.mean()) / X_valid.std())
+X_test = ((X_test - X_test.mean()) / X_test.std())
+X_train, y_train = shuffle(X_train, y_train)
+BATCH_SIZE = 200
+
 
 def constrast_limit(image):
     """
@@ -78,20 +78,6 @@ def preprocess_image(image):
     return image
 
 
-def remove_lines(image):
-    gray = image.copy()
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    min_line_length = 5
-    max_line_gap = 3
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 15, min_line_length, max_line_gap)
-    mask = np.ones(image.shape[:2], dtype=np.uint8) * 255
-    if lines is not None:
-        for line in lines:
-            for x1, y1, x2, y2 in line:
-                cv2.line(mask, (x1, y1), (x2, y2), (0, 0, 0), 2)
-    return cv2.bitwise_and(image, image, mask=mask)
-
-
 def remove_small_components(image, threshold):
     """
         Loai bo cac thanh phan nho
@@ -133,23 +119,6 @@ def contour_is_sign(contour, centroid, threshold):
         return False, max_value + 2
 
 
-def crop_contour(image, center, max_distance):
-    """
-    :param image:
-    :param center:
-    :param max_distance:
-    :return: cropped contours
-    """
-    width = image.shape[1]
-    height = image.shape[0]
-    top = max([int(center[0] - max_distance), 0])
-    bottom = min([int(center[0] + max_distance + 1), height - 1])
-    left = max([int(center[1] - max_distance), 0])
-    right = min([int(center[1] + max_distance + 1), width - 1])
-    print(left, right, top, bottom)
-    return image[left:right, top:bottom]
-
-
 def crop_sign(image, coordinate):
     """
     :param image:
@@ -162,7 +131,7 @@ def crop_sign(image, coordinate):
     bottom = min([int(coordinate[1][1]), height - 1])
     left = max([int(coordinate[0][0]), 0])
     right = min([int(coordinate[1][0]), width - 1])
-    return image[top:bottom, left:right]
+    return image[top - 3:bottom + 3, left - 3:right + 3]
 
 
 def find_lagest_sign(image, contour, threshold, distance_theshold):
@@ -183,41 +152,12 @@ def find_lagest_sign(image, contour, threshold, distance_theshold):
     c_y = int(M["m01"] / M["m00"])
     is_sign, distance = contour_is_sign(contour, [c_x, c_y], 1 - threshold)
     if is_sign and distance > max_distance and distance > distance_theshold:
-        max_distance = distance
         coordinate = np.reshape(contour, [-1, 2])
         left, top = np.amin(coordinate, axis=0)
         right, bottom = np.amax(coordinate, axis=0)
         coordinate = [(left - 2, top - 2), (right + 3, bottom + 1)]
         sign = crop_sign(image, coordinate)
     return sign, coordinate
-
-
-def find_signs(image, contours, threshold, distance_threshold):
-    """
-    :param image:
-    :param contours:
-    :param threshold:
-    :param distance_threshold:
-    :return: (signs, coordinates)
-    """
-    signs = []
-    coordinates = []
-    for c in contours:
-        # compute the center of the contour
-        M = cv2.moments(c)
-        if M["m00"] == 0:
-            continue
-        cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
-        is_sign, max_distance = contour_is_sign(c, [cX, cY], 1 - threshold)
-        if is_sign and max_distance > distance_threshold:
-            sign = crop_contour(image, [cX, cY], max_distance)
-            signs.append(sign)
-            coordinate = np.reshape(c, [-1, 2])
-            top, left = np.amin(coordinate, axis=0)
-            right, bottom = np.amax(coordinate, axis=0)
-            coordinates.append([(top - 2, left - 2), (right + 1, bottom + 1)])
-    return signs, coordinates
 
 
 import_graph = tf.train.import_meta_graph('./lenet.meta')
@@ -227,30 +167,41 @@ def main(args):
     with tf.Session() as sess:
         import_graph.restore(sess, tf.train.latest_checkpoint('.'))
 
-        # fc2 = tf.get_default_graph().get_tensor_by_name('fc2:0')
-        # fc3_W = tf.get_default_graph().get_tensor_by_name('fc3_W:0')
-        # fc3_b = tf.get_default_graph().get_tensor_by_name('fc3_b:0')
-        # logits = tf.matmul(fc2, fc3_W) + fc3_b
-        #
+        fc2 = tf.get_default_graph().get_tensor_by_name('fc2:0')
+        fc3_W = tf.get_default_graph().get_tensor_by_name('fc3_W:0')
+        fc3_b = tf.get_default_graph().get_tensor_by_name('fc3_b:0')
+        logits = tf.matmul(fc2, fc3_W) + fc3_b
+
         x = tf.get_default_graph().get_tensor_by_name('x:0')
-        # y = tf.get_default_graph().get_tensor_by_name('y:0')
-        # one_hot_y = tf.get_default_graph().get_tensor_by_name('one_hot_y:0')
+        y = tf.get_default_graph().get_tensor_by_name('y:0')
+        one_hot_y = tf.get_default_graph().get_tensor_by_name('one_hot_y:0')
         prediction = tf.get_default_graph().get_tensor_by_name('prediction:0')
-        # correct_prediction = tf.get_default_graph().get_tensor_by_name('correct_prediction:0')
-        # accuracy_operation = tf.get_default_graph().get_tensor_by_name('accuracy_operation:0')
-        #
-        # def evaluate(X_data, y_data):
-        #     num_examples = len(X_data)
-        #     total_accuracy = 0
-        #     sess = tf.get_default_session()
-        #     for offset in range(0, num_examples, BATCH_SIZE):
-        #         batch_x, batch_y = X_data[offset:offset + BATCH_SIZE], y_data[offset:offset + BATCH_SIZE]
-        #         accuracy = sess.run(accuracy_operation, feed_dict={x: batch_x, y: batch_y})
-        #         total_accuracy += (accuracy * len(batch_x))
-        #     return total_accuracy / num_examples
-        #
-        # test_accuracy = evaluate(X_test, y_test)
-        # print("Test Accuracy = {:.3f}".format(test_accuracy))
+        correct_prediction = tf.get_default_graph().get_tensor_by_name('correct_prediction:0')
+        accuracy_operation = tf.get_default_graph().get_tensor_by_name('accuracy_operation:0')
+
+        # tf.summary.FileWriter('./graph', tf.get_default_graph())
+
+        def evaluate(X_data, y_data):
+            num_examples = len(X_data)
+            total_accuracy = 0
+            sess = tf.get_default_session()
+            for offset in range(0, num_examples, BATCH_SIZE):
+                batch_x, batch_y = X_data[offset:offset + BATCH_SIZE], y_data[offset:offset + BATCH_SIZE]
+                accuracy = sess.run(accuracy_operation, feed_dict={x: batch_x, y: batch_y})
+                total_accuracy += (accuracy * len(batch_x))
+            return total_accuracy / num_examples
+
+        test_accuracy = evaluate(X_test, y_test)
+        print("Test Accuracy = {:.3f}".format(test_accuracy))
+
+        # import  imageio
+        # import matplotlib.pyplot as plt
+        # stop = imageio.imread('./extra_signs/end.jpg')
+        # # stop = cv2.cvtColor(stop, cv2.COLOR_BGR2RGB)
+        # plt.imshow(stop)
+        # sign_class = sess.run(prediction, feed_dict={x: np.array([stop])})
+        # print('Sign class: ', sign_class)                                                                                                                                  # print("Test Accuracy = {:.3f}".format(test_accuracy))
+        # return
         ###########################################################
         """
             Doc thong tin bien bao tu file csv
@@ -268,12 +219,11 @@ def main(args):
             ret, frame = camera.read()
             if not ret:
                 break
-            frame = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_LINEAR)
+            frame = cv2.resize(frame, (640, 360))
             frame_copy = frame.copy()
             # xu ly hinh anh
             binary_image = preprocess_image(frame_copy)
             binary_image = remove_small_components(binary_image, threshold=300)
-
             # Giu lai cac mau blue, red, white, black
             blur = cv2.GaussianBlur(frame_copy, (3, 3), 0)
             # BGR to HSV
@@ -298,7 +248,7 @@ def main(args):
             # Tim tat ca cac contours(bien) trong binary_image
             cnts = cv2.findContours(binary_image, cv2.RETR_EXTERNAL,
                                     cv2.CHAIN_APPROX_SIMPLE)[-2]
-            # Remove line
+            cv2.imshow("BINARY_IMAGE", binary_image)
             if len(cnts) > 0:
                 for cnt in cnts:
                     # Chi lay ROI cua bien bao co gan camera nhat de predict
@@ -308,6 +258,7 @@ def main(args):
                         if coordinate is not None:
                             cv2.rectangle(frame_copy, coordinate[0], coordinate[1], (255, 255, 255), 1)
                         sign = cv2.resize(sign, (32, 32), 1, 1)
+                        sign = cv2.cvtColor(sign, cv2.COLOR_BGR2RGB)
                         cv2.imshow('Sign', sign)
                         sign_class = sess.run(prediction, feed_dict={x: np.array([sign])})
                         if sign_class[0]:
@@ -317,11 +268,6 @@ def main(args):
                                         (0, 255, 0), 2)
                     except Exception as e:
                         pass
-                    # _x, _y, w, h = cv2.boundingRect(cnt)
-                    # roi = frame[_y:_y + h, _x:_x + w]
-                    # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-                    # roi = cv2.resize(roi, (32, 32), 1, 1)
-                    # sign_class = sess.run(prediction, feed_dict={x: np.array([roi])})
             cv2.imshow('VIDEO', frame_copy)
             k = cv2.waitKey(10) & 0xFF
             if k == 27:
