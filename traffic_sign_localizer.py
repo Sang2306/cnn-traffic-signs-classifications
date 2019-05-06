@@ -24,9 +24,9 @@ import tensorflow as tf
 # # Shuffle data
 # from sklearn.utils import shuffle
 # # Normalize the data
-# X_train = ((X_train - 127.5) / 127.5)
-# X_valid = ((X_valid - 127.5) / 127.5)
-# X_test = ((X_test - 127.5) / 127.5)
+# X_train = ((X_train - X_train.mean()) / X_train.std())
+# X_valid = ((X_valid - X_valid.mean()) / X_valid.std())
+# X_test = ((X_test - X_test.mean()) / X_test.std())
 # X_train, y_train = shuffle(X_train, y_train)
 # BATCH_SIZE = 200
 
