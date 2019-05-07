@@ -63,7 +63,7 @@ def binarization(image):
     :param image:
     :return: thresh
     """
-    thresh = cv2.threshold(image, 20, 255, cv2.THRESH_BINARY)[1]
+    thresh = cv2.threshold(image, 32, 255, cv2.THRESH_BINARY)[1]
     return thresh
 
 
@@ -131,7 +131,7 @@ def crop_sign(image, coordinate):
     top = max([int(coordinate[0][1]), 0])
     right = min([int(coordinate[1][0]), width - 1])
     bottom = min([int(coordinate[1][1]), height - 1])
-    return image[top - 8:bottom + 8, left - 8:right + 8]
+    return image[top - 10:bottom + 10, left - 10:right + 10]
 
 
 def find_lagest_sign(image, contour, threshold, distance_theshold):
