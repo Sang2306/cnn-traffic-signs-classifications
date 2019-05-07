@@ -27,7 +27,7 @@ X_train = ((X_train - 127.5) / 127.5)
 X_valid = ((X_valid - 127.5) / 127.5)
 X_test = ((X_test - 127.5) / 127.5)
 X_train, y_train = shuffle(X_train, y_train)
-BATCH_SIZE = 200
+BATCH_SIZE = 695
 
 
 def constrast_limit(image):
@@ -63,7 +63,7 @@ def binarization(image):
     :param image:
     :return: thresh
     """
-    thresh = cv2.threshold(image, 32, 255, cv2.THRESH_BINARY)[1]
+    thresh = cv2.threshold(image, 20, 255, cv2.THRESH_BINARY)[1]
     return thresh
 
 
@@ -110,7 +110,7 @@ def contour_is_sign(contour, centroid, threshold):
         distance_list.append(distance)
     max_distance = max(distance_list)
     signature = [float(dist) / max_distance for dist in distance_list]
-    # Check signature of contour.
+    # kiem tra co phai la bien bao hay khong.
     temp = sum((1 - s) for s in signature)
     temp = temp / len(signature)
     if temp < threshold:  # sign
@@ -131,7 +131,7 @@ def crop_sign(image, coordinate):
     top = max([int(coordinate[0][1]), 0])
     right = min([int(coordinate[1][0]), width - 1])
     bottom = min([int(coordinate[1][1]), height - 1])
-    return image[top - 7:bottom + 7, left - 7:right + 7]
+    return image[top - 8:bottom + 8, left - 8:right + 8]
 
 
 def find_lagest_sign(image, contour, threshold, distance_theshold):
@@ -196,7 +196,7 @@ def main(args):
 
         # import  imageio
         # import matplotlib.pyplot as plt
-        # stop = imageio.imread('./extra_signs/end.jpg')
+        # stop = imageio.imread('./extra_signs/stop.jpg')
         # # stop = cv2.cvtColor(stop, cv2.COLOR_BGR2RGB)
         # plt.imshow(stop)
         # sign_class = sess.run(prediction, feed_dict={x: np.array([stop])})
@@ -223,7 +223,7 @@ def main(args):
             frame_copy = frame.copy()
             # xu ly hinh anh
             binary_image = preprocess_image(frame_copy)
-            binary_image = remove_small_components(binary_image, threshold=350)
+            binary_image = remove_small_components(binary_image, threshold=300)
             # Giu lai cac mau blue, red, white, black
             blur = cv2.GaussianBlur(frame_copy, (3, 3), 0)
             # BGR to HSV
